@@ -4,41 +4,39 @@ Created on Fri Mar 23 11:08:09 2018
 
 @author: jchen3
 """
+from __future__ import division, print_function
 import clr
 import System, math,time, gc,sys,subprocess
 from System import Array
 from System import SByte
 import System.Reflection
+import numpy as np
 
 
 
 try:
-    sys.path.append("C:\\Program Files (x86)\\Analog Devices\\Talise Transceiver Evaluation Software FULL")
-    System.Reflection.Assembly.LoadWithPartialName("AdiCmdServerClient.dll")
+    sys.path.append("C:\\Program Files (x86)\\Analog Devices\\ADRV9009 Transceiver Evaluation Software")
+    clr.AddReference('AdiCmdServerClient')
     import AdiCmdServerClient
     from AdiCmdServerClient import AdiCommandServerClient
     from AdiCmdServerClient import Talise
     from AdiCmdServerClient import FpgaTalise 
 except:
-    print 'No Talise related environment found ...'
+    print('No Talise related environment found ...')
 
 def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):    
     tx1data = []
     tx2data = []
-    extendBit1 = (Link.SpiRead(System.UInt16(0x1588)) &0x1F) + 1
-    extendBit2 = (Link.SpiRead(System.UInt16(0x15d8)) &0x1F) + 1
-    extendBit  = max(extendBit1,extendBit2)
+#    extendBit1 = (Link.SpiRead(System.UInt16(0x1588)) &0x1F) + 1
+#    extendBit2 = (Link.SpiRead(System.UInt16(0x15d8)) &0x1F) + 1
+#    extendBit  = max(extendBit1,extendBit2)
     Link.FpgaTalise.EnableTxDataPaths(Link.FpgaTalise.TxDataPath.Disable)
     if TX1 and TX2:
-        for i in range(len(si)):
-            tx1data.append(si[i])
-            tx1data.append(sq[i])
+        for i in range(len(si)):    tx1data.extend([si[i],sq[i]])
         tx1data = Array[System.Int16](tx1data)
         Link.WriteRam(Link.FpgaTalise.FpgaChannel.Tx1, 0, tx1data)   #No description of this funciton in chm, nor the first parameter type
         Link.FpgaTalise.SetTxTransmitSamples(Link.FpgaTalise.TxBuffer.Tx1DataMover, len(tx1data))
-        for i in range(len(si)):
-            tx2data.append(si[i])
-            tx2data.append(sq[i])
+        for i in range(len(si)):    tx2data.extend([si[i],sq[i]])
         tx2data = Array[System.Int16](tx2data)
         Link.WriteRam(Link.FpgaTalise.FpgaChannel.Tx2, 0, tx2data)
         Link.FpgaTalise.SetTxTransmitSamples(Link.FpgaTalise.TxBuffer.Tx2DataMover, len(tx2data))
@@ -48,9 +46,7 @@ def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):
 
     
     elif TX1:
-        for i in range(len(si)):
-            tx1data.append(si[i])
-            tx1data.append(sq[i])
+        for i in range(len(si)):    tx1data.extend([si[i],sq[i]])
         tx1data = Array[System.Int16](tx1data)
         Link.WriteRam(Link.FpgaTalise.FpgaChannel.Tx1, 0, tx1data)   #No description of this funciton in chm, nor the first parameter type
         Link.FpgaTalise.SetTxTransmitSamples(Link.FpgaTalise.TxBuffer.Tx1DataMover, len(tx1data))
@@ -59,9 +55,7 @@ def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):
 
 
     elif TX2:
-        for i in range(len(si)):
-            tx2data.append(si[i])
-            tx2data.append(sq[i])
+        for i in range(len(si)):    tx2data.extend([si[i],sq[i]])
         tx2data = Array[System.Int16](tx2data)
         Link.WriteRam(Link.FpgaTalise.FpgaChannel.Tx2, 0, tx2data)
         Link.FpgaTalise.SetTxTransmitSamples(Link.FpgaTalise.TxBuffer.Tx2DataMover, len(tx2data))
@@ -70,12 +64,12 @@ def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):
 
     
     else:
-        print "Both transmitters have been disabled!"
+        print ("Both transmitters have been disabled!")
 
     Link.FpgaTalise.SetTxTrigger(Link.FpgaTalise.TxTrigger.Immediate)
     Link.FpgaTalise.SetTxTransmitMode(1)
     Link.FpgaTalise.StartTxData()
-    print "TX DATA SENT!!" 
+    print ("TX DATA SENT!!") 
     Link.Talise.RadioOn()
 
 
@@ -139,15 +133,15 @@ def do_ironscript(script_path):
         f = open(script_path,'r')
         f.close()
     except:
-        print "No Init Script named " + script_path
+        print ("No Init Script named " + script_path)
         return -1
         
     try:
-        print IRON_PYTHON_CMD+'&&ipy '+script_path
+        print (IRON_PYTHON_CMD+'&&ipy '+script_path)
         res = subprocess.check_output(IRON_PYTHON_CMD+'&&ipy '+script_path , shell = True)
-        print res
+        print (res)
     except:
-        print "Init Script running failure"
+        print ("Init Script running failure")
         return -2
         
     return 0
@@ -188,12 +182,13 @@ class TRx_Talise(object):
         if self.Link.hw.Connected == 1:    pass
         else:
             if ip == '':    
-                print 'Empty IP Address, Please check'
+                print ('Empty IP Address, Please check')
                 return -1
             try:
                 self.Link.hw.Connect(ip, 55555)
             except:
-                print 'Connecting Talise Fail ...'
+                print ('Connecting Talise Fail ...')
+                return -2
 
         return 0
     
@@ -205,7 +200,7 @@ class TRx_Talise(object):
     
     def transceiverInit(self, conf_file=''):
         if conf_file == '':    
-            print 'Empty Ironpython file !'
+            print ('Empty Ironpython file !')
             return 1
         do_ironscript(conf_file)
         self.transceiver_connect(self.ip)
@@ -214,20 +209,20 @@ class TRx_Talise(object):
 
     def spiRead(self,address):
         data = self.Link.SpiRead(System.UInt16(address))&0xFF
-        print "SPI Read Address " + hex(address) + ": " + hex(data)
+        print ("SPI Read Address " + hex(address) + ": " + hex(data))
         return data
         
          
     def spiWrite(self,address,data):
         self.Link.SpiWrite( System.UInt16(address), System.Byte(data) )
-        print "SPI Write Address " + hex(address) + ": " + hex(data)    
+        print ("SPI Write Address " + hex(address) + ": " + hex(data))   
 
     
     def getAPI_ARMVersion(self):
         apivsn = self.Link.Talise.GetApiVersion()
         armvsn = self.Link.Talise.GetArmVersion()
-        print 'Talise Arm Version: %s' %armvsn
-        print 'Talise API Version: %s' %apivsn
+        print( 'Talise Arm Version: %s' %armvsn)
+        print( 'Talise API Version: %s' %apivsn)
         return apivsn,armvsn
     
     
@@ -313,10 +308,10 @@ class TRx_Talise(object):
             
             
     def setTxAtt_dBm(self,channel,att_dBm):
-        if channel == 1:
-            self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx1,att_dBm)
-        elif channel == 2:
-            self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx2,att_dBm)
+        if channel == 1 or channel== 3:
+            self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx1,System.Double(att_dBm))
+        if channel == 2 or channel== 3:
+            self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx2,System.Double(att_dBm))
 
             
 
@@ -325,12 +320,12 @@ class TRx_Talise(object):
         result = self.Link.Talise.GetRxTxEnable(0,0)#ironpython just has 2 return val
         rxstate = result[-2]
         txstate = result[-1]
-        print rxstate
+        a = System.Double(0)
         self.Link.Talise.SetRxTxEnable(rxstate, self.Link.Talise.TxChannel.Tx1Tx2)
         if channel == 1:
-            att_dBm = self.Link.Talise.GetTxAttenuation(self.Link.Talise.TxChannel.Tx1,0)
+            att_dBm = self.Link.Talise.GetTxAttenuation(self.Link.Talise.TxChannel.Tx1,a)
         elif channel == 2:
-            att_dBm = self.Link.Talise.GetTxAttenuation(self.Link.Talise.TxChannel.Tx2,0)
+            att_dBm = self.Link.Talise.GetTxAttenuation(self.Link.Talise.TxChannel.Tx2,a)
         self.Link.Talise.SetRxTxEnable(rxstate, txstate)
         return att_dBm/1.e3
 
@@ -380,7 +375,8 @@ class TRx_Talise(object):
         if channel & 0x20:  self.Link.Talise.GetRxManualGain(self.Link.Talise.RxChannel.ORx2,gainIndex)
         return gainIndex
 
-
+    def rxdatanormalize(self,si,sq):
+        return np.array(si)/32768, np.array(sq)/32768
 
     def receivedata(self,rx_channel,num):
         return receiveRxOrxData_Talise(self.Link,rx_channel,num)
@@ -389,7 +385,14 @@ class TRx_Talise(object):
     def receivedataTDD(self,rx_channel,num):
         return receiveRxOrxDataTDD_Talise(self.Link,rx_channel,num)
     
-    
+    def txdatascaler(self,si,sq,bitnum=14):
+        # 32767 / 4 = 8191.75 = 8192 rounded * 4 = 32768 > max codes
+        MAXSCALINGFACTOR = 32764
+        si = (si* MAXSCALINGFACTOR)//4 * 4 
+        sq = (sq* MAXSCALINGFACTOR)//4 * 4 
+        if bitnum==14:    return si, sq
+        else:             return si//16, sq//16
+
     def senddata(self,si,sq,txchannelMask):
         sendTxData_Talise(self.Link,si,sq, txchannelMask & 1, (txchannelMask>>1)&1 )
         gc.collect()
@@ -422,7 +425,7 @@ class TRx_Talise(object):
         if deframer == 1:   defSel = self.Link.Talise.DeframerSelect.DeframerB
         else:               defSel = self.Link.Talise.DeframerSelect.DeframerA
         status = self.Link.Talise.ReadDeframerStatus(defSel)
-        print 'Talise Deframer %d status: 0x%x' (deframer,status) 
+        print ('Talise Deframer %d status: 0x%x' (deframer,status) )
         return status
 
 
@@ -431,7 +434,7 @@ class TRx_Talise(object):
         if framer == 1: fSel = self.Link.Talise.DeframerSelect.FramerB 
         else:           fSel = self.Link.Talise.DeframerSelect.FramerA 
         status = self.Link.Talise.ReadFramerStatus(fSel)
-        print 'Talise Framer %d status: 0x%x' (framer,status) 
+        print ('Talise Framer %d status: 0x%x' (framer,status) )
         return status
 
 
@@ -469,7 +472,7 @@ class TRx_Talise(object):
 
     def getrssi(self,channel):
         if channel > 2 or channel <1:
-            print 'Invalid Rx channel for Talise'
+            print ('Invalid Rx channel for Talise')
             return -1
         self.SpiWrite(0x745+channel,0)
         return self.SpiRead(0x745+channel)
@@ -521,7 +524,7 @@ class TRx_Talise(object):
         coff_s = []
         for i in range(numcoff):
             self.SpiWrite(0xC3,i)
-            coff_s.append(Link.SpiRead(0xC2))
+            coff_s.append(self.Link.SpiRead(0xC2))
         return coff_s    
         
     def loopbackfromdeframerA2framer(self,framer,enable):
@@ -543,7 +546,7 @@ class TRx_Talise(object):
         elif channelMsk&2 and enable == 0:	
             self.Link.SpiWrite(System.UInt16(0x101),System.Byte(data & 0x7F))
         else:
-            print 'Invalid Tx channel for Talise'
+            print ('Invalid Tx channel for Talise')
 
 
 
