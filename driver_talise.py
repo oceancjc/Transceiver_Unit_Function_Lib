@@ -25,8 +25,7 @@ except:
     print('No Talise related environment found ...')
 
 def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):    
-    tx1data = []
-    tx2data = []
+    tx1data, tx2data = [],[]
 #    extendBit1 = (Link.SpiRead(System.UInt16(0x1588)) &0x1F) + 1
 #    extendBit2 = (Link.SpiRead(System.UInt16(0x15d8)) &0x1F) + 1
 #    extendBit  = max(extendBit1,extendBit2)
@@ -42,8 +41,6 @@ def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):
         Link.FpgaTalise.SetTxTransmitSamples(Link.FpgaTalise.TxBuffer.Tx2DataMover, len(tx2data))
 
         Link.FpgaTalise.EnableTxDataPaths(Link.FpgaTalise.TxDataPath.Tx1Tx2)
-        Link.Talise.SetRxTxEnable(Talise.RxOrxChannel.RxOff, Talise.TxChannel.Tx1Tx2)
-
     
     elif TX1:
         for i in range(len(si)):    tx1data.extend([si[i],sq[i]])
@@ -51,8 +48,6 @@ def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):
         Link.WriteRam(Link.FpgaTalise.FpgaChannel.Tx1, 0, tx1data)   #No description of this funciton in chm, nor the first parameter type
         Link.FpgaTalise.SetTxTransmitSamples(Link.FpgaTalise.TxBuffer.Tx1DataMover, len(tx1data))
         Link.FpgaTalise.EnableTxDataPaths(Link.FpgaTalise.TxDataPath.Tx1)
-        Link.Talise.SetRxTxEnable(Talise.RxOrxChannel.RxOff, Talise.TxChannel.Tx1)
-
 
     elif TX2:
         for i in range(len(si)):    tx2data.extend([si[i],sq[i]])
@@ -60,8 +55,6 @@ def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):
         Link.WriteRam(Link.FpgaTalise.FpgaChannel.Tx2, 0, tx2data)
         Link.FpgaTalise.SetTxTransmitSamples(Link.FpgaTalise.TxBuffer.Tx2DataMover, len(tx2data))
         Link.FpgaTalise.EnableTxDataPaths(Link.FpgaTalise.TxDataPath.Tx2)
-        Link.Talise.SetRxTxEnable(Talise.RxOrxChannel.RxOff, Talise.TxChannel.Tx2)
-
     
     else:
         print ("Both transmitters have been disabled!")
@@ -69,8 +62,7 @@ def sendTxData_Talise(Link,si,sq,TX1=1,TX2=1):
     Link.FpgaTalise.SetTxTrigger(Link.FpgaTalise.TxTrigger.Immediate)
     Link.FpgaTalise.SetTxTransmitMode(1)
     Link.FpgaTalise.StartTxData()
-    print ("TX DATA SENT!!") 
-    Link.Talise.RadioOn()
+    #print ("TX DATA SENT!!") 
 
 
 def receiveRxOrxData_Talise(Link,rx_channel = 1,num = 245760):
@@ -85,11 +77,11 @@ def receiveRxOrxData_Talise(Link,rx_channel = 1,num = 245760):
     elif rx_channel == 0x10:
         fpgaChannel = Link.FpgaTalise.FpgaChannel.ObsRx1
         dataMover = Link.FpgaTalise.RxCapture.ObsRx1DataMover
-        rxDataPath = Link.FpgaTalise.RxDataPath.ObsRx1   
+        rxDataPath = Link.FpgaTalise.RxDataPath.ObsRx1
     elif rx_channel == 0x20:
         fpgaChannel = Link.FpgaTalise.FpgaChannel.ObsRx2
         dataMover = Link.FpgaTalise.RxCapture.ObsRx2DataMover
-        rxDataPath = Link.FpgaTalise.RxDataPath.ObsRx2   
+        rxDataPath = Link.FpgaTalise.RxDataPath.ObsRx2 
     Link.FpgaTalise.EnableRxDataPaths(Link.FpgaTalise.RxDataPath.Disable)
     Link.FpgaTalise.SetRxCaptureSamples(dataMover, System.UInt32(num))
     Link.FpgaTalise.SetRxTrigger(Link.FpgaTalise.RxTrigger.Immediate)
@@ -229,9 +221,9 @@ class TRx_Talise(object):
     def setLO_MHz(self,loname, freqMHz):           
         TaliseLOSrc = [0,self.Link.Talise.PllName.RfPll,self.Link.Talise.PllName.AuxPll]
         state = self.Link.Talise.GetRadioState(0)
-        if state == 3:    self.Link.Talise.RadioOff()
+        if state != 0:    self.Link.Talise.RadioOff()
         self.Link.Talise.SetRfPllFrequency(TaliseLOSrc[loname], int(freqMHz*1e6))
-        if state == 3:   self.Link.Talise.RadioOn()
+        if state != 0:   self.Link.Talise.RadioOn()
 
             
     def getLO_MHz(self,loname):
@@ -292,19 +284,20 @@ class TRx_Talise(object):
 
 
     def setRxTxEnable(self,rxorxmask,txmask):
-        rx_s = [self.Link.Talise.RxOrxChannel.RxOff,self.Link.Talise.RxOrxChannel.Rx1,
-                self.Link.Talise.RxOrxChannel.Rx2,self.Link.Talise.RxOrxChannel.Rx1Rx2]
-        orx_s = [self.Link.Talise.RxOrxChannel.Orx1,self.Link.Talise.RxOrxChannel.Orx2,self.Link.Talise.RxOrxChannel.Orx1Orx2]
+        dic_rxorx = {
+                    0: self.Link.Talise.RxOrxChannel.RxOff,    1: self.Link.Talise.RxOrxChannel.Rx1,
+                    2: self.Link.Talise.RxOrxChannel.Rx2,      3: self.Link.Talise.RxOrxChannel.Rx1Rx2,
+                    4: self.Link.Talise.RxOrxChannel.Orx1,     8: self.Link.Talise.RxOrxChannel.Orx2,
+                    12:self.Link.Talise.RxOrxChannel.Orx1Orx2
+                }
         tx_s = [self.Link.Talise.TxChannel.TxOff,self.Link.Talise.TxChannel.Tx1,self.Link.Talise.TxChannel.Tx2,self.Link.Talise.TxChannel.Tx1Tx2]
-        self.Link.Talise.SetRxTxEnable(rx_s[rxorxmask&3], tx_s[txmask])
-        orxmask = rxorxmask>>2
-        if orxmask !=0:  self.Link.Talise.SetRxTxEnable(orx_s[orxmask&3], tx_s[txmask])
+        self.Link.Talise.SetRxTxEnable(dic_rxorx[rxorxmask], tx_s[txmask])
 
             
             
-    def getRxTxEnable(self):    
+    def getRxTxEnable(self):   
         result = self.Link.Talise.GetRxTxEnable(0,0)
-        return result[-2],result[-1]
+        return {'rxorxchannel':result[-2], 'txchannel':result[-1]}
             
             
     def setTxAtt_dBm(self,channel,att_dBm):
@@ -362,17 +355,17 @@ class TRx_Talise(object):
     def setRxGain(self,channel,gainIndex):
         if channel & 0x01:  self.Link.Talise.SetRxManualGain(self.Link.Talise.RxChannel.Rx1,gainIndex)
         if channel & 0x02:  self.Link.Talise.SetRxManualGain(self.Link.Talise.RxChannel.Rx2,gainIndex)
-        if channel & 0x10:  self.Link.Talise.SetRxManualGain(self.Link.Talise.RxChannel.ORx1,gainIndex)
-        if channel & 0x20:  self.Link.Talise.SetRxManualGain(self.Link.Talise.RxChannel.ORx2,gainIndex)
+        if channel & 0x10:  self.Link.Talise.SetObsRxManualGain(self.Link.Talise.ObsRxChannel.ObsRx1,gainIndex)
+        if channel & 0x20:  self.Link.Talise.SetObsRxManualGain(self.Link.Talise.ObsRxChannel.ObsRx1,gainIndex)
 
 
             
-    def getRxGain(self,channel):
+    def getRxOrxGain(self,channelmsk):
         gainIndex = 0
-        if channel & 0x01:  self.Link.Talise.GetRxManualGain(self.Link.Talise.RxChannel.Rx1,gainIndex)
-        if channel & 0x02:  self.Link.Talise.GetRxManualGain(self.Link.Talise.RxChannel.Rx2,gainIndex)
-        if channel & 0x10:  self.Link.Talise.GetRxManualGain(self.Link.Talise.RxChannel.ORx1,gainIndex)
-        if channel & 0x20:  self.Link.Talise.GetRxManualGain(self.Link.Talise.RxChannel.ORx2,gainIndex)
+        if channelmsk & 0x01:  gainIndex = self.Link.Talise.GetRxGain(self.Link.Talise.RxChannel.Rx1,gainIndex)
+        if channelmsk & 0x02:  gainIndex = self.Link.Talise.GetRxGain(self.Link.Talise.RxChannel.Rx2,gainIndex)
+        if channelmsk & 0x10:  gainIndex = self.Link.Talise.GetObsRxGain(self.Link.Talise.ObsRxChannel.ObsRx1,gainIndex)
+        if channelmsk & 0x20:  gainIndex = self.Link.Talise.GetObsRxGain(self.Link.Talise.ObsRxChannel.ObsRx1,gainIndex)
         return gainIndex
 
     def rxdatanormalize(self,si,sq):
@@ -398,12 +391,12 @@ class TRx_Talise(object):
         gc.collect()
         
 
-    def runInitCal(self,txChannelMsk,initCalMask):
+    def runInitCal(self, channelMsk, initCalMask):
         errorFlag = 0
         self.Link.Talise.RadioOff()
         self.Link.Talise.AbortInitCals(0)
         self.Link.Talise.RunInitCals(initCalMask)
-        self.Link.Talise.WaitInitCals(20000, 0)
+        self.Link.Talise.WaitInitCals(50000, 0)
         return errorFlag
 
 
@@ -442,8 +435,6 @@ class TRx_Talise(object):
     def getInitCalcomplete(self):
         isrun, err = 0,0
         isrun,err = self.Link.Talise.CheckInitCalComplete(isrun,err)
-
-    
     
     
     def enabletrackingcals(self,msk):
@@ -453,7 +444,20 @@ class TRx_Talise(object):
 
     def disabletrackingcals(self,msk):
         self.Link.Talise.EnableTrackingCals(msk)
+        
 
+    def gettxqecstatus(self,txchannel):
+        dic_r = {'ErrorCode':0,'IterCount':0,'PercentComplete':0,'UpdateCount':0}
+        if txchannel == 1:    channel = self.Link.Talise.TxChannel.Tx1
+        elif txchannel ==2:   channel = self.Link.Talise.TxChannel.Tx2
+        else:
+            print('Error Channel,only 1 or 2 valid')
+            return dic_r
+        status = AdiCmdServerClient.TxQecStatus()
+        status = self.Link.Talise.GetTxQecStatus(channel,status)
+        dic_r['ErrorCode'], dic_r['IterCount'] = status.ErrorCode, status.IterCount
+        dic_r['PercentComplete'], dic_r['UpdateCount'] = status.PercentComplete, status.UpdateCount
+        return dic_r
 
 
     def txpwrdetect_dBFs(self,channel):
