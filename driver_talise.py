@@ -552,7 +552,21 @@ class TRx_Talise(object):
         else:
             print ('Invalid Tx channel for Talise')
 
-
+    def exLOLCalRun(self,channelMsk,txATTdBm):
+        self.Link.Talise.RadioOff()
+        if channelMsk & 1:
+            self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx1,System.Double(txATTdBm))
+            self.Link.Talise.SetTxToOrxMapping(1,self.Link.Talise.TxToOrxMapping.TalMapTx1Orx,self.Link.Talise.TxToOrxMapping.TalMapNone)
+            self.Link.Talise.AbortInitCals(0)
+            self.Link.Talise.RunInitCals(0x200)
+            self.Link.Talise.WaitInitCals(60000, 0)
+        if channelMsk & 2:
+            self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx2,System.Double(txATTdBm))
+            self.Link.Talise.SetTxToOrxMapping(1,self.Link.Talise.TxToOrxMapping.TalMapTx2Orx,self.Link.Talise.TxToOrxMapping.TalMapNone)
+            self.Link.Talise.AbortInitCals(0)
+            self.Link.Talise.RunInitCals(0x200)
+            self.Link.Talise.WaitInitCals(60000, 0)        
+        self.Link.Talise.RadioOn()
 
 
 
