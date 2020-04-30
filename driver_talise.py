@@ -120,7 +120,7 @@ def receiveRxOrxDataTDD_Talise(Link,rx_channel = 1,num = 245760):
 
 
 def do_ironscript(script_path):
-    IRON_PYTHON_CMD = 'cd C:\\Program Files (x86)\\IronPython 2.7'    
+    IRON_PYTHON_CMD = 'C:\\Program Files (x86)\\IronPython 2.7'    
     try:
         f = open(script_path,'r')
         f.close()
@@ -129,14 +129,15 @@ def do_ironscript(script_path):
         return -1
         
     try:
-        print (IRON_PYTHON_CMD+'&&ipy '+script_path)
-        res = subprocess.check_output(IRON_PYTHON_CMD+'&&ipy '+script_path , shell = True)
+        print (IRON_PYTHON_CMD+ '\\ipy.exe '+script_path)
+        res = subprocess.check_output([IRON_PYTHON_CMD+'\\ipy.exe', script_path] , shell = True)
         print (res)
     except:
         print ("Init Script running failure")
         return -2
         
     return 0
+
 
 
     
@@ -166,7 +167,7 @@ class TRx_Talise(object):
             self.__name__ = 'Talise'
         
         self.MACRO = Talise_MACRO(self.Link)
-
+        self.radioState = 0
             
 
     def transceiver_connect( self,ip='10.99.37.251' ):
@@ -342,6 +343,7 @@ class TRx_Talise(object):
         self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx1,12)
         self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx2,12)
         self.Link.Talise.RadioOn()
+        self.radioState = 1
 
 
 
@@ -395,10 +397,28 @@ class TRx_Talise(object):
         errorFlag = 0
         self.Link.Talise.RadioOff()
         self.Link.Talise.AbortInitCals(0)
+        self.Link.Talise.WaitInitCals(60000, 0)
         self.Link.Talise.RunInitCals(initCalMask)
-        self.Link.Talise.WaitInitCals(50000, 0)
+        self.Link.Talise.WaitInitCals(60000, 0)
         return errorFlag
 
+
+    def runExLOLInitCal(self, txChannel, orxChannel, times = 1):
+        self.Link.Talise.AbortInitCals(0)
+        self.Link.Talise.SetTxToOrxMapping(1, self.Link.Talise.TxToOrxMapping.TalMapNone, self.Link.Talise.TxToOrxMapping.TalMapNone)
+        self.Link.Talise.WaitInitCals(60000, 0)
+        if txChannel == 1 and orxChannel == 1:
+            self.Link.Talise.SetTxToOrxMapping(1, self.Link.Talise.TxToOrxMapping.TalMapTx1Orx, self.Link.Talise.TxToOrxMapping.TalMapNone)
+        elif txChannel == 1 and orxChannel == 2:
+            self.Link.Talise.SetTxToOrxMapping(1, self.Link.Talise.TxToOrxMapping.TalMapNone, self.Link.Talise.TxToOrxMapping.TalMapTx1Orx)
+        elif txChannel == 2 and orxChannel == 1:
+            self.Link.Talise.SetTxToOrxMapping(1, self.Link.Talise.TxToOrxMapping.TalMapTx2Orx, self.Link.Talise.TxToOrxMapping.TalMapNone)
+        elif txChannel == 2 and orxChannel == 2:
+            self.Link.Talise.SetTxToOrxMapping(1, self.Link.Talise.TxToOrxMapping.TalMapNone, self.Link.Talise.TxToOrxMapping.TalMapTx2Orx)
+        for i in range(times):    
+            self.Link.Talise.RunInitCals(int(self.Link.Talise.CalMask.TxLoLeakageExternal))        
+            self.Link.Talise.WaitInitCals(60000, 0)
+        
 
     def gettemperature(self):
         tmp = 0
@@ -412,7 +432,7 @@ class TRx_Talise(object):
         
     def abortInitCal(self):
         self.Link.Talise.AbortInitCals(0)
-        
+        self.Link.Talise.WaitInitCals(60000, 0)
 
     def getdeframerstatus(self,deframer):   
         if deframer == 1:   defSel = self.Link.Talise.DeframerSelect.DeframerB
@@ -432,18 +452,32 @@ class TRx_Talise(object):
 
 
 
+    def getInitCalStatus(self):
+        r = self.Link.Talise.GetInitCalStatus(0,0,0,0,0)
+        return [hex(i) for i in r]
+    
+    
     def getInitCalcomplete(self):
         isrun, err = 0,0
         isrun,err = self.Link.Talise.CheckInitCalComplete(isrun,err)
     
     
     def enabletrackingcals(self,msk):
+        self.Link.Talise.RadioOff()
         self.Link.Talise.EnableTrackingCals(msk)
-
+        if self.radioState == 1:    self.Link.Talise.RadioOn()
     
 
     def disabletrackingcals(self,msk):
+        self.Link.Talise.RadioOff()
         self.Link.Talise.EnableTrackingCals(msk)
+        if self.radioState == 1:    self.Link.Talise.RadioOn()
+        
+ 
+    def disableAllTrackingCals(self):
+        self.Link.Talise.RadioOff()
+        self.Link.Talise.EnableTrackingCals(0)      
+        if self.radioState == 1:    self.Link.Talise.RadioOn()
         
 
     def gettxqecstatus(self,txchannel):
@@ -500,10 +534,12 @@ class TRx_Talise(object):
 
     def RadioOn(self):
         self.Link.Talise.RadioOn()
+        self.radioState = 1
 
         
     def RadioOff(self):
         self.Link.Talise.RadioOff()
+        self.radioState = 0
         
         
     def forcesend0enable(self,channel):
@@ -552,24 +588,47 @@ class TRx_Talise(object):
         else:
             print ('Invalid Tx channel for Talise')
 
-    def exLOLCalRun(self,channelMsk,txATTdBm):
-        self.Link.Talise.RadioOff()
-        if channelMsk & 1:
-            self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx1,System.Double(txATTdBm))
-            self.Link.Talise.SetTxToOrxMapping(1,self.Link.Talise.TxToOrxMapping.TalMapTx1Orx,self.Link.Talise.TxToOrxMapping.TalMapNone)
-            self.Link.Talise.AbortInitCals(0)
-            self.Link.Talise.RunInitCals(0x200)
-            self.Link.Talise.WaitInitCals(60000, 0)
-        if channelMsk & 2:
-            self.Link.Talise.SetTxAttenuation(self.Link.Talise.TxChannel.Tx2,System.Double(txATTdBm))
-            self.Link.Talise.SetTxToOrxMapping(1,self.Link.Talise.TxToOrxMapping.TalMapTx2Orx,self.Link.Talise.TxToOrxMapping.TalMapNone)
-            self.Link.Talise.AbortInitCals(0)
-            self.Link.Talise.RunInitCals(0x200)
-            self.Link.Talise.WaitInitCals(60000, 0)        
-        self.Link.Talise.RadioOn()
-
-
-
+    def dumpTxQecLolCalValues(self, loMHz, txchannel, txatt):
+        ''' 
+        QEC Part: 0xfe1 - 0xff4   change IQ Path QEC Gain Filter Coeffs
+                  
+        LOL Part: 0xff5 - 0xff8   change IQ Path DC offset
+        '''
+        if txchannel == 1:      
+            r = [self.Link.SpiRead(System.UInt16(0xcc0+i))&0xFF for i in range(2)]
+            r += [self.Link.SpiRead(System.UInt16(0xfe1+i))&0xFF for i in range(24)]
+        elif txchannel == 2: 
+            r = [self.Link.SpiRead(System.UInt16(0xcc2+i))&0xFF for i in range(2)]
+            r += [self.Link.SpiRead(System.UInt16(0x1001+i))&0xFF for i in range(24)]
+        return [loMHz, txchannel, txatt] + r
+    
+    
+    def loadTxQecLolCalValues(self, txchannel, qecvals, lolvals):
+        if qecvals == None or len(qecvals) != 22:    print('Invalid QEC cal values')
+        elif txchannel == 1:
+            # Load QEC Phase data
+            for i in range(2):     self.Link.SpiWrite(System.UInt16(0xcc0+i), System.Byte(qecvals[i]))
+            #Load QEC Gain Filter Coeffs
+            for i in range(20):    self.Link.SpiWrite(System.UInt16(0xfe1+i), System.Byte(qecvals[2+i]))
+            #Latch the bit to update QEC phase Data
+            self.Link.SpiWrite(System.UInt16(0xcc1), System.Byte(qecvals[1] | 0x80))
+            self.Link.SpiWrite(System.UInt16(0xcc1), System.Byte(qecvals[1] & 0x7F))
+            #Latch the bit to update QEC Filter Coeffs
+            self.Link.SpiWrite(System.UInt16(0xfe0), System.Byte(0x04))
+        elif txchannel == 2:
+            for i in range(2):     self.Link.SpiWrite(System.UInt16(0xcc2+i), System.Byte(qecvals[i]))
+            for i in range(20):    self.Link.SpiWrite(System.UInt16(0x1001+i), System.Byte(qecvals[2+i]))
+            self.Link.SpiWrite(System.UInt16(0xcc3), System.Byte(qecvals[1] | 0x80))
+            self.Link.SpiWrite(System.UInt16(0xcc3), System.Byte(qecvals[1] & 0x7F))
+            self.Link.SpiWrite(System.UInt16(0xfe0), System.Byte(0x08))
+            
+        if lolvals == None or len(lolvals) != 4:    print('Invalid LOL cal values')
+        elif txchannel == 1:
+            for i in range(4):    self.Link.SpiWrite(System.UInt16(0xff5+i), System.Byte(lolvals[i]))
+            self.Link.SpiWrite(System.UInt16(0xfe0), System.Byte(0x01))
+        elif txchannel == 2:
+            for i in range(4):    self.Link.SpiWrite(System.UInt16(0x1015+i), System.Byte(lolvals[i]))        
+            self.Link.SpiWrite(System.UInt16(0xfe0), System.Byte(0x02))
 
 
 
